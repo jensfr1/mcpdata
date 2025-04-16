@@ -368,20 +368,20 @@ def register(mcp: FastMCP):
                 "message": f"Fehler bei der Statusabfrage: {str(e)}"
             }
     
-    @mcp.tool(name="💬 Mike - Chat Flow")
-    def migration_chat_flow(
+    @mcp.tool(name="💬 Mike - Migration Workflow")
+    def migration_workflow(
         user_input: str,
         current_state: str = "start",
         context: dict = None
     ) -> dict:
         """
-        Führt einen interaktiven Chat-Flow für den Migrationsprozess durch
-        
+        Führt einen vollständigen Migrations-Workflow durch und koordiniert alle Agenten
+
         Args:
             user_input: Die Eingabe des Benutzers
-            current_state: Der aktuelle Zustand des Chat-Flows
+            current_state: Der aktuelle Zustand des Workflows
             context: Kontext-Informationen aus vorherigen Interaktionen
-            
+
         Returns:
             Ein Dictionary mit der Antwort und dem nächsten Zustand
         """
@@ -389,168 +389,590 @@ def register(mcp: FastMCP):
             # Initialisiere den Kontext, wenn er nicht existiert
             if context is None:
                 context = {}
-            
+
             # Initialisiere die Antwort
             response = {
                 "message": "",
                 "next_state": current_state,
                 "context": context,
-                "actions": []
+                "actions": [],
+                "workflow_status": {
+                    "steward": "pending",
+                    "emma": "pending",
+                    "oskar": "pending",
+                    "mathias": "pending",
+                    "james": "pending",
+                    "gina": "pending"
+                }
             }
-            
+
+            # Aktualisiere den Workflow-Status aus dem Kontext, falls vorhanden
+            if "workflow_status" in context:
+                response["workflow_status"] = context["workflow_status"]
+
             # Zustand: Start des Migrationsprozesses
             if current_state == "start":
+                response["message"] = (
+                    "# 🚀 Willkommen beim Migrationsprozess!\n\n"
+                    "Ich bin Mike, Ihr Migrations-Orchestrator. Ich werde Sie durch den gesamten Prozess führen und "
+                    "die verschiedenen Agenten koordinieren.\n\n"
+                    "## Workflow-Übersicht:\n"
+                    "1. **Steward** - Initialisierung und Routing\n"
+                    "2. **Emma** - Datenprofilierung\n"
+                    "3. **Oskar** - Datenbereinigung\n"
+                    "4. **Mathias** - Feldmapping\n"
+                    "5. **James** - Datenmigration\n"
+                    "6. **Gina** - Berichterstellung\n\n"
+                    "Um zu beginnen, benötige ich den Pfad zu Ihrer Quelldatei (CSV)."
+                )
+                response["next_state"] = "get_source_file"
+                response["actions"] = ["Pfad zur Quelldatei angeben", "Projekt-Verzeichnis angeben"]
+                return response
+
+            # Zustand: Quelldatei erfassen
+            elif current_state == "get_source_file":
                 # Prüfe, ob der Benutzer einen Pfad angegeben hat
                 if os.path.exists(user_input):
                     # Prüfe, ob es sich um eine Datei oder ein Verzeichnis handelt
                     if os.path.isfile(user_input):
                         # Es ist eine Datei, wahrscheinlich die Quelldatei
                         context["source_file"] = user_input
+
+                        # Aktualisiere den Workflow-Status
+                        response["workflow_status"]["steward"] = "in_progress"
+
                         response["message"] = (
-                            f"Danke! Ich habe die Quelldatei '{os.path.basename(user_input)}' gefunden.\n\n"
-                            f"Möchten Sie diese Datei analysieren, um mit dem Migrationsprozess fortzufahren?"
+                            f"# 📁 Quelldatei gefunden\n\n"
+                            f"Ich habe die Quelldatei '{os.path.basename(user_input)}' gefunden.\n\n"
+                            f"Als nächstes werde ich Steward bitten, die Datei zu analysieren und den Workflow zu initialisieren.\n\n"
+                            f"Bitte verwenden Sie das Tool '🧠 Steward - Data Steward' mit folgenden Parametern:\n\n"
+                            f"- **request**: \"Analyze and initialize migration workflow\"\n"
+                            f"- **data_source**: \"{user_input}\"\n\n"
+                            f"Sobald Steward die Analyse abgeschlossen hat, teilen Sie mir die Ergebnisse mit."
                         )
-                        response["next_state"] = "confirm_analysis"
-                        response["actions"] = ["Ja, Datei analysieren", "Nein, andere Datei wählen"]
+                        response["next_state"] = "steward_analysis"
+                        response["actions"] = ["Steward aufrufen", "Andere Datei wählen"]
                     else:
-                        # Es ist ein Verzeichnis, wahrscheinlich das Projektverzeichnis
+                        # Es ist ein Verzeichnis, prüfe auf vorhandene Migrationsdateien
                         context["project_directory"] = user_input
-                        # Rufe die Funktion get_migration_status auf, um den Status zu ermitteln
-                        status_result = get_migration_status(user_input)
-                        response["message"] = status_result["message"]
-                        response["next_state"] = "continue_migration"
-                        response["actions"] = ["Migration fortsetzen", "Neue Migration starten"]
-                        response["context"]["migration_status"] = status_result["summary"]
+
+                        # Suche nach CSV-Dateien im Verzeichnis
+                        csv_files = glob.glob(os.path.join(user_input, "*.csv"))
+
+                        if csv_files:
+                            csv_list = "\n".join([f"- {os.path.basename(f)}" for f in csv_files])
+                            response["message"] = (
+                                f"# 📁 Projekt-Verzeichnis gefunden\n\n"
+                                f"Ich habe folgende CSV-Dateien im Verzeichnis '{user_input}' gefunden:\n\n"
+                                f"{csv_list}\n\n"
+                                f"Bitte wählen Sie eine Datei aus, die als Quelldatei verwendet werden soll."
+                            )
+                            response["next_state"] = "select_source_file"
+                            response["context"]["csv_files"] = csv_files
+                            response["actions"] = [os.path.basename(f) for f in csv_files[:5]]
+                            if len(csv_files) > 5:
+                                response["actions"].append("Weitere Dateien anzeigen")
+                        else:
+                            response["message"] = (
+                                f"# ⚠️ Keine CSV-Dateien gefunden\n\n"
+                                f"Im Verzeichnis '{user_input}' wurden keine CSV-Dateien gefunden.\n\n"
+                                f"Bitte geben Sie den Pfad zu einer CSV-Datei an oder wählen Sie ein anderes Verzeichnis."
+                            )
+                            response["next_state"] = "get_source_file"
+                            response["actions"] = ["Pfad zur Quelldatei angeben", "Anderes Verzeichnis wählen"]
                 else:
                     # Kein gültiger Pfad, frage erneut
                     response["message"] = (
-                        "Der angegebene Pfad existiert nicht. Bitte geben Sie einen gültigen Pfad zu einer Quelldatei "
-                        "oder einem Migrationsverzeichnis an."
+                        "# ⚠️ Pfad nicht gefunden\n\n"
+                        f"Der angegebene Pfad '{user_input}' existiert nicht.\n\n"
+                        f"Bitte geben Sie einen gültigen Pfad zu einer CSV-Datei oder einem Verzeichnis an."
                     )
-                    response["actions"] = ["Pfad zur Quelldatei angeben", "Pfad zum Migrationsverzeichnis angeben"]
-            
-            # Zustand: Bestätigung der Analyse
-            elif current_state == "confirm_analysis":
-                if user_input.lower() in ["ja", "ja, datei analysieren", "analysieren", "yes"]:
-                    # Analysiere die Quelldatei
-                    analysis_result = orchestrate_migration(
-                        action="analyze",
-                        source_file=context["source_file"]
-                    )
-                    response["message"] = analysis_result["message"]
-                    response["next_state"] = "choose_mapping"
-                    response["context"]["file_info"] = analysis_result.get("file_info", {})
-                    response["context"]["existing_mappings"] = analysis_result.get("existing_mappings", [])
-                    
-                    if "existing_mappings" in analysis_result and analysis_result["existing_mappings"]:
-                        response["actions"] = ["Vorhandenes Mapping verwenden", "Neues Mapping erstellen"]
-                    else:
-                        response["actions"] = ["Neues Mapping erstellen", "Zielstruktur beschreiben"]
-                else:
-                    # Benutzer möchte eine andere Datei wählen
-                    response["message"] = "Bitte geben Sie den Pfad zu einer anderen Quelldatei an."
-                    response["next_state"] = "start"
-                    response["actions"] = ["Pfad zur Quelldatei angeben"]
-            
-            # Zustand: Mapping auswählen
-            elif current_state == "choose_mapping":
-                if "vorhandenes mapping" in user_input.lower():
-                    # Benutzer möchte ein vorhandenes Mapping verwenden
-                    if "existing_mappings" in context and context["existing_mappings"]:
-                        mapping_options = "\n".join([f"- {os.path.basename(m)}" for m in context["existing_mappings"]])
-                        response["message"] = (
-                            f"Bitte wählen Sie eines der folgenden Mappings:\n\n{mapping_options}\n\n"
-                            f"Geben Sie den Namen des Mappings an, das Sie verwenden möchten."
-                        )
-                        response["next_state"] = "select_existing_mapping"
-                        response["actions"] = [os.path.basename(m) for m in context["existing_mappings"]]
-                    else:
-                        response["message"] = (
-                            "Es wurden keine vorhandenen Mappings gefunden. Wir müssen ein neues Mapping erstellen.\n\n"
-                            "Bitte geben Sie den Pfad zur Zielstruktur-Datei an oder beschreiben Sie die Zielstruktur."
-                        )
-                        response["next_state"] = "create_mapping"
-                        response["actions"] = ["Pfad zur Zielstruktur angeben", "Zielstruktur beschreiben"]
-                else:
-                    # Benutzer möchte ein neues Mapping erstellen
-                    response["message"] = (
-                        "Um ein neues Mapping zu erstellen, benötige ich Informationen über die Zielstruktur.\n\n"
-                        "Bitte geben Sie den Pfad zur Zielstruktur-Datei an oder beschreiben Sie die Zielstruktur."
-                    )
-                    response["next_state"] = "create_mapping"
-                    response["actions"] = ["Pfad zur Zielstruktur angeben", "Zielstruktur beschreiben"]
-            
-            # Zustand: Vorhandenes Mapping auswählen
-            elif current_state == "select_existing_mapping":
-                # Suche nach dem angegebenen Mapping in den vorhandenen Mappings
-                selected_mapping = None
-                for mapping in context.get("existing_mappings", []):
-                    if os.path.basename(mapping).lower() == user_input.lower() or user_input.lower() in mapping.lower():
-                        selected_mapping = mapping
+                    response["next_state"] = "get_source_file"
+                    response["actions"] = ["Pfad zur Quelldatei angeben", "Projekt-Verzeichnis angeben"]
+
+                return response
+
+            # Zustand: Quelldatei aus Verzeichnis auswählen
+            elif current_state == "select_source_file":
+                # Prüfe, ob die ausgewählte Datei in der Liste der CSV-Dateien ist
+                csv_files = context.get("csv_files", [])
+                selected_file = None
+
+                for file in csv_files:
+                    if os.path.basename(file).lower() == user_input.lower() or user_input.lower() in file.lower():
+                        selected_file = file
                         break
-                
-                if selected_mapping:
-                    context["mapping_file"] = selected_mapping
+
+                if selected_file:
+                    context["source_file"] = selected_file
+
+                    # Aktualisiere den Workflow-Status
+                    response["workflow_status"]["steward"] = "in_progress"
+
                     response["message"] = (
-                        f"Danke! Ich verwende das Mapping '{os.path.basename(selected_mapping)}'.\n\n"
-                        f"Jetzt müssen wir die Daten validieren und auf Duplikate prüfen.\n\n"
-                        f"Bitte geben Sie den Pfad zur Zieldatei an, gegen die wir prüfen sollen."
+                        f"# 📁 Quelldatei ausgewählt\n\n"
+                        f"Sie haben die Datei '{os.path.basename(selected_file)}' ausgewählt.\n\n"
+                        f"Als nächstes werde ich Steward bitten, die Datei zu analysieren und den Workflow zu initialisieren.\n\n"
+                        f"Bitte verwenden Sie das Tool '🧠 Steward - Data Steward' mit folgenden Parametern:\n\n"
+                        f"- **request**: \"Analyze and initialize migration workflow\"\n"
+                        f"- **data_source**: \"{selected_file}\"\n\n"
+                        f"Sobald Steward die Analyse abgeschlossen hat, teilen Sie mir die Ergebnisse mit."
                     )
-                    response["next_state"] = "validate_data"
-                    response["actions"] = ["Pfad zur Zieldatei angeben", "Similarity Threshold anpassen"]
+                    response["next_state"] = "steward_analysis"
+                    response["actions"] = ["Steward aufrufen", "Andere Datei wählen"]
                 else:
+                    # Datei nicht gefunden, frage erneut
+                    csv_list = "\n".join([f"- {os.path.basename(f)}" for f in csv_files])
                     response["message"] = (
-                        f"Ich konnte das angegebene Mapping nicht finden. Bitte wählen Sie eines der folgenden Mappings:\n\n"
-                        f"{', '.join([os.path.basename(m) for m in context.get('existing_mappings', [])])}"
+                        f"# ⚠️ Datei nicht gefunden\n\n"
+                        f"Die angegebene Datei '{user_input}' wurde nicht gefunden.\n\n"
+                        f"Bitte wählen Sie eine der folgenden Dateien:\n\n{csv_list}"
                     )
-                    response["actions"] = [os.path.basename(m) for m in context.get("existing_mappings", [])]
-            
-            # Zustand: Mapping erstellen
-            elif current_state == "create_mapping":
+                    response["next_state"] = "select_source_file"
+                    response["actions"] = [os.path.basename(f) for f in csv_files[:5]]
+
+                return response
+
+            # Zustand: Steward-Analyse verarbeiten
+            elif current_state == "steward_analysis":
+                # Hier erwarten wir, dass der Benutzer die Ergebnisse von Steward mitteilt
+                # Wir könnten versuchen, die JSON-Antwort zu parsen, aber das ist komplex
+                # Stattdessen fragen wir nach dem nächsten Schritt basierend auf Stewards Empfehlung
+
+                # Aktualisiere den Workflow-Status
+                response["workflow_status"]["steward"] = "completed"
+                response["workflow_status"]["emma"] = "in_progress"
+
+                # Versuche, die Ergebnisse von Steward zu parsen (optional)
+                try:
+                    steward_results = json.loads(user_input)
+                    context["steward_results"] = steward_results
+                    # Hier könnten wir die Ergebnisse von Steward verwenden, um die Nachricht anzupassen
+                except json.JSONDecodeError:
+                    print("Warnung: Konnte Steward-Ergebnisse nicht als JSON parsen.")
+
+                response["message"] = (
+                    "# 📊 Datenprofilierung mit Emma\n\n"
+                    "Basierend auf Stewards Analyse sollten wir als nächstes eine detaillierte Datenprofilierung durchführen.\n\n"
+                    f"Bitte verwenden Sie das Tool '🔍 Emma - Profiling Agent' mit folgenden Parametern:\n\n"
+                    f"- **file_path**: \"{context['source_file']}\"\n"
+                    f"- **analyze_duplicates**: True\n"
+                    f"- **similarity_threshold**: 90\n"
+                    f"- **ai_analysis**: True (optional)\n\n"
+                    f"Emma wird die Daten analysieren und potenzielle Probleme identifizieren. "
+                    f"Sobald Emma die Analyse abgeschlossen hat, teilen Sie mir die Ergebnisse mit."
+                )
+                response["next_state"] = "emma_profiling"
+                response["actions"] = ["Emma aufrufen", "Profilierungsparameter anpassen"]
+
+                return response
+
+            # Zustand: Emma-Profilierung verarbeiten
+            elif current_state == "emma_profiling":
+                # Hier erwarten wir, dass der Benutzer die Ergebnisse von Emma mitteilt
+
+                # Aktualisiere den Workflow-Status
+                response["workflow_status"]["emma"] = "completed"
+
+                # Versuche, die Ergebnisse von Emma zu parsen (optional)
+                try:
+                    emma_results = json.loads(user_input)
+                    context["emma_results"] = emma_results
+
+                    # Prüfe, ob Oskar benötigt wird (basierend auf Emmas Ergebnissen)
+                    needs_oskar = False
+                    if "oskar_instructions" in emma_results and emma_results["oskar_instructions"].get("cleaning_tasks"):
+                        needs_oskar = True
+
+                    if needs_oskar:
+                        response["workflow_status"]["oskar"] = "in_progress"
+                        response["message"] = (
+                            "# 🧹 Datenbereinigung mit Oskar\n\n"
+                            "Emma hat die Datenprofilierung abgeschlossen und einige Bereiche identifiziert, die bereinigt werden müssen.\n\n"
+                            f"Bitte verwenden Sie das Tool '🧹 Oskar - Cleaning Agent' mit folgenden Parametern:\n\n"
+                            f"- **file_path**: \"{context['source_file']}\"\n"
+                            f"- **emma_results**: (Fügen Sie hier die JSON-Ergebnisse von Emma ein)\n"
+                            f"- **auto_apply**: False (oder True, wenn Sie die Bereinigung automatisch durchführen möchten)\n\n"
+                            f"Oskar wird die Daten bereinigen. "
+                            f"Sobald Oskar die Bereinigung abgeschlossen hat, teilen Sie mir die Ergebnisse mit."
+                        )
+                        response["next_state"] = "oskar_cleaning"
+                        response["actions"] = ["Oskar aufrufen", "Bereinigungsparameter anpassen"]
+                    else:
+                        # Oskar wird übersprungen
+                        response["workflow_status"]["oskar"] = "skipped"
+                        response["workflow_status"]["mathias"] = "in_progress"
+                        response["message"] = (
+                            "# 🔄 Feldmapping mit Mathias\n\n"
+                            "Emma hat die Datenprofilierung abgeschlossen und keine Bereinigung ist erforderlich.\n\n"
+                            "Der nächste Schritt ist das Feldmapping mit Mathias.\n\n"
+                            "Benötigen wir eine spezifische Zielstruktur? Bitte geben Sie den Pfad zur Zielstruktur-Datei an oder beschreiben Sie die Zielstruktur."
+                        )
+                        response["next_state"] = "prepare_mapping"
+                        response["actions"] = ["Zielstruktur-Datei angeben", "Zielstruktur beschreiben"]
+
+                except json.JSONDecodeError:
+                    print("Warnung: Konnte Emma-Ergebnisse nicht als JSON parsen. Gehe davon aus, dass Oskar benötigt wird.")
+                    # Fallback, wenn das Parsen fehlschlägt
+                    response["workflow_status"]["oskar"] = "in_progress"
+                    response["message"] = (
+                        "# 🧹 Datenbereinigung mit Oskar\n\n"
+                        "Emma hat die Datenprofilierung abgeschlossen. Als nächstes sollten wir die Daten mit Oskar bereinigen.\n\n"
+                        f"Bitte verwenden Sie das Tool '🧹 Oskar - Cleaning Agent' mit folgenden Parametern:\n\n"
+                        f"- **file_path**: \"{context['source_file']}\"\n"
+                        f"- **auto_apply**: False\n\n"
+                        f"Sobald Oskar die Bereinigung abgeschlossen hat, teilen Sie mir die Ergebnisse mit."
+                    )
+                    response["next_state"] = "oskar_cleaning"
+                    response["actions"] = ["Oskar aufrufen", "Bereinigungsparameter anpassen"]
+
+                return response
+
+            # Zustand: Oskar-Bereinigung verarbeiten
+            elif current_state == "oskar_cleaning":
+                # Hier erwarten wir, dass der Benutzer die Ergebnisse von Oskar mitteilt
+
+                # Aktualisiere den Workflow-Status
+                response["workflow_status"]["oskar"] = "completed"
+                response["workflow_status"]["mathias"] = "in_progress"
+
+                # Versuche, die Ergebnisse von Oskar zu parsen (optional)
+                try:
+                    oskar_results = json.loads(user_input)
+                    context["oskar_results"] = oskar_results
+                    # Speichere den Pfad zur bereinigten Datei
+                    if "output_file" in oskar_results:
+                        context["cleaned_file"] = oskar_results["output_file"]
+                except json.JSONDecodeError:
+                    print("Warnung: Konnte Oskar-Ergebnisse nicht als JSON parsen.")
+                    # Versuche, den Pfad zur bereinigten Datei zu erraten
+                    cleaned_file_guess = context['source_file'].replace(".csv", "_cleaned.csv")
+                    if os.path.exists(cleaned_file_guess):
+                        context["cleaned_file"] = cleaned_file_guess
+
+                response["message"] = (
+                    "# 🔄 Feldmapping mit Mathias\n\n"
+                    "Oskar hat die Datenbereinigung abgeschlossen.\n\n"
+                    "Der nächste Schritt ist das Feldmapping mit Mathias.\n\n"
+                    "Benötigen wir eine spezifische Zielstruktur? Bitte geben Sie den Pfad zur Zielstruktur-Datei an oder beschreiben Sie die Zielstruktur."
+                )
+                response["next_state"] = "prepare_mapping"
+                response["actions"] = ["Zielstruktur-Datei angeben", "Zielstruktur beschreiben"]
+
+                return response
+
+            # Zustand: Mapping vorbereiten
+            elif current_state == "prepare_mapping":
                 # Prüfe, ob der Benutzer einen Pfad angegeben hat
                 if os.path.exists(user_input):
+                    # Es ist eine Datei, wahrscheinlich die Zielstruktur
                     context["target_structure"] = user_input
+
                     response["message"] = (
-                        f"Danke! Ich verwende die Zielstruktur-Datei '{os.path.basename(user_input)}'.\n\n"
-                        f"Jetzt werde ich Mathias bitten, ein Mapping zu erstellen.\n\n"
+                        "# 🔄 Feldmapping mit Mathias\n\n"
+                        f"Ich habe die Zielstruktur-Datei '{os.path.basename(user_input)}' gefunden.\n\n"
                         f"Bitte verwenden Sie das Tool '🔄 Mathias - Create Field Mapping' mit folgenden Parametern:\n\n"
-                        f"- **source_file**: {context['source_file']}\n"
-                        f"- **target_structure**: {user_input}\n\n"
-                        f"Sobald das Mapping erstellt wurde, können wir mit der Validierung fortfahren."
+                        f"- **source_file**: \"{context.get('cleaned_file', context['source_file'])}\"\n"
+                        f"- **target_structure**: \"{user_input}\"\n\n"
+                        f"Mathias wird ein Mapping zwischen der Quelldatei und der Zielstruktur erstellen. "
+                        f"Sobald Mathias das Mapping erstellt hat, teilen Sie mir die Ergebnisse mit."
                     )
-                    response["next_state"] = "wait_for_mapping"
-                    response["actions"] = ["Mathias aufrufen", "Mapping manuell erstellen"]
+                    response["next_state"] = "mathias_mapping"
+                    response["actions"] = ["Mathias aufrufen", "Mapping-Parameter anpassen"]
                 else:
-                    # Benutzer hat eine Beschreibung der Zielstruktur angegeben
+                    # Benutzer möchte die Zielstruktur beschreiben
                     context["target_description"] = user_input
+
                     response["message"] = (
-                        f"Danke für die Beschreibung der Zielstruktur. Basierend darauf werde ich Mathias bitten, "
-                        f"ein Mapping zu erstellen.\n\n"
+                        "# 🔄 Feldmapping mit Mathias\n\n"
+                        f"Danke für die Beschreibung der Zielstruktur.\n\n"
                         f"Bitte verwenden Sie das Tool '🔄 Mathias - Create Field Mapping' mit folgenden Parametern:\n\n"
-                        f"- **source_file**: {context['source_file']}\n"
-                        f"- **target_description**: {user_input}\n\n"
-                        f"Sobald das Mapping erstellt wurde, können wir mit der Validierung fortfahren."
+                        f"- **source_file**: \"{context.get('cleaned_file', context['source_file'])}\"\n"
+                        f"- **target_description**: \"{user_input}\"\n\n"
+                        f"Mathias wird basierend auf Ihrer Beschreibung ein Mapping erstellen. "
+                        f"Sobald Mathias das Mapping erstellt hat, teilen Sie mir die Ergebnisse mit."
                     )
-                    response["next_state"] = "wait_for_mapping"
-                    response["actions"] = ["Mathias aufrufen", "Mapping manuell erstellen"]
-            
-            # Weitere Zustände können hier hinzugefügt werden...
-            
+                    response["next_state"] = "mathias_mapping"
+                    response["actions"] = ["Mathias aufrufen", "Mapping-Parameter anpassen"]
+
+                return response
+
+            # Zustand: Mathias-Mapping verarbeiten
+            elif current_state == "mathias_mapping":
+                # Hier erwarten wir, dass der Benutzer die Ergebnisse von Mathias mitteilt
+
+                # Aktualisiere den Workflow-Status
+                response["workflow_status"]["mathias"] = "completed"
+                response["workflow_status"]["james"] = "in_progress"
+
+                # Versuche, die Ergebnisse von Mathias zu parsen (optional)
+                try:
+                    mathias_results = json.loads(user_input)
+                    context["mathias_results"] = mathias_results
+                    if "mapping_file" in mathias_results:
+                         context["mapping_file"] = mathias_results["mapping_file"]
+                except json.JSONDecodeError:
+                    print("Warnung: Konnte Mathias-Ergebnisse nicht als JSON parsen.")
+
+                # Frage nach der Mapping-Datei, falls sie nicht im Kontext ist
+                if "mapping_file" not in context:
+                    response["message"] = (
+                        "# 📤 Datenmigration mit James\n\n"
+                        "Mathias hat das Feldmapping abgeschlossen. Als nächstes müssen wir die Datenmigration durchführen.\n\n"
+                        "Bitte geben Sie den Pfad zur Mapping-Datei an, die Mathias erstellt hat."
+                    )
+                    response["next_state"] = "get_mapping_file"
+                    response["actions"] = ["Pfad zur Mapping-Datei angeben"]
+                else:
+                    # Mapping-Datei ist bekannt, fahre fort mit James
+                    response["message"] = (
+                        "# 📤 Datenmigration mit James\n\n"
+                        f"Ich habe die Mapping-Datei '{os.path.basename(context['mapping_file'])}' gefunden.\n\n"
+                        f"Bitte verwenden Sie das Tool '📤 James - Apply Field Mapping' mit folgenden Parametern:\n\n"
+                        f"- **source_file**: \"{context.get('cleaned_file', context['source_file'])}\"\n"
+                        f"- **mapping_file**: \"{context['mapping_file']}\"\n"
+                        f"- **handling_option**: \"create_new\" (oder eine andere Option nach Bedarf)\n\n"
+                        f"James wird die Daten gemäß dem Mapping migrieren. "
+                        f"Sobald James die Migration abgeschlossen hat, teilen Sie mir die Ergebnisse mit."
+                    )
+                    response["next_state"] = "james_migration"
+                    response["actions"] = ["James aufrufen", "Migrations-Parameter anpassen"]
+
+                return response
+
+            # Zustand: Mapping-Datei erfassen
+            elif current_state == "get_mapping_file":
+                if os.path.exists(user_input):
+                    # Mapping-Datei gefunden
+                    context["mapping_file"] = user_input
+
+                    response["message"] = (
+                        "# 📤 Datenmigration mit James\n\n"
+                        f"Ich habe die Mapping-Datei '{os.path.basename(user_input)}' gefunden.\n\n"
+                        f"Bitte verwenden Sie das Tool '📤 James - Apply Field Mapping' mit folgenden Parametern:\n\n"
+                        f"- **source_file**: \"{context.get('cleaned_file', context['source_file'])}\"\n"
+                        f"- **mapping_file**: \"{user_input}\"\n"
+                        f"- **handling_option**: \"create_new\" (oder eine andere Option nach Bedarf)\n\n"
+                        f"James wird die Daten gemäß dem Mapping migrieren. "
+                        f"Sobald James die Migration abgeschlossen hat, teilen Sie mir die Ergebnisse mit."
+                    )
+                    response["next_state"] = "james_migration"
+                    response["actions"] = ["James aufrufen", "Migrations-Parameter anpassen"]
+                else:
+                    # Datei nicht gefunden
+                    response["message"] = (
+                        "# ⚠️ Datei nicht gefunden\n\n"
+                        f"Die angegebene Datei '{user_input}' wurde nicht gefunden.\n\n"
+                        f"Bitte geben Sie einen gültigen Pfad zur Mapping-Datei an."
+                    )
+                    response["next_state"] = "get_mapping_file"
+                    response["actions"] = ["Pfad zur Mapping-Datei angeben"]
+
+                return response
+
+            # Zustand: James-Migration verarbeiten
+            elif current_state == "james_migration":
+                # Hier erwarten wir, dass der Benutzer die Ergebnisse von James mitteilt
+
+                # Aktualisiere den Workflow-Status
+                response["workflow_status"]["james"] = "completed"
+                response["workflow_status"]["gina"] = "in_progress"
+
+                # Versuche, die Ergebnisse von James zu parsen (optional)
+                try:
+                    james_results = json.loads(user_input)
+                    context["james_results"] = james_results
+                    # Speichere den Pfad zur migrierten Datei
+                    if "output_file" in james_results:
+                        context["migrated_file"] = james_results["output_file"]
+                        # Bestimme das Projektverzeichnis
+                        context["migration_directory"] = os.path.dirname(james_results["output_file"])
+                except json.JSONDecodeError:
+                    print("Warnung: Konnte James-Ergebnisse nicht als JSON parsen.")
+
+                # Frage nach dem Migrationsverzeichnis, falls es nicht im Kontext ist
+                if "migration_directory" not in context:
+                    response["message"] = (
+                        "# 📊 Berichterstellung mit Gina\n\n"
+                        "James hat die Datenmigration abgeschlossen. Als letzten Schritt erstellen wir einen Bericht.\n\n"
+                        "Bitte geben Sie das Verzeichnis an, in dem die Migrationsdateien gespeichert sind."
+                    )
+                    response["next_state"] = "get_migration_directory"
+                    response["actions"] = ["Pfad zum Migrations-Verzeichnis angeben"]
+                else:
+                    # Migrationsverzeichnis ist bekannt, fahre fort mit Gina
+                    response["message"] = (
+                        "# 📊 Berichterstellung mit Gina\n\n"
+                        f"Ich habe das Migrations-Verzeichnis '{context['migration_directory']}' gefunden.\n\n"
+                        f"Bitte verwenden Sie das Tool '📊 Gina - Generate Migration Report' mit folgenden Parametern:\n\n"
+                        f"- **project_directory**: \"{context['migration_directory']}\"\n"
+                        f"- **report_title**: \"Migrationsbericht für {os.path.basename(context['source_file'])}\"\n"
+                        f"- **include_details**: True\n\n"
+                        f"Gina wird einen umfassenden Bericht über den Migrationsprozess erstellen. "
+                        f"Sobald Gina den Bericht erstellt hat, teilen Sie mir die Ergebnisse mit."
+                    )
+                    response["next_state"] = "gina_report"
+                    response["actions"] = ["Gina aufrufen", "Berichts-Parameter anpassen"]
+
+                return response
+
+            # Zustand: Migrations-Verzeichnis erfassen
+            elif current_state == "get_migration_directory":
+                if os.path.exists(user_input) and os.path.isdir(user_input):
+                    # Verzeichnis gefunden
+                    context["migration_directory"] = user_input
+
+                    response["message"] = (
+                        "# 📊 Berichterstellung mit Gina\n\n"
+                        f"Ich habe das Migrations-Verzeichnis '{user_input}' gefunden.\n\n"
+                        f"Bitte verwenden Sie das Tool '📊 Gina - Generate Migration Report' mit folgenden Parametern:\n\n"
+                        f"- **project_directory**: \"{user_input}\"\n"
+                        f"- **report_title**: \"Migrationsbericht für {os.path.basename(context['source_file'])}\"\n"
+                        f"- **include_details**: True\n\n"
+                        f"Gina wird einen umfassenden Bericht über den Migrationsprozess erstellen. "
+                        f"Sobald Gina den Bericht erstellt hat, teilen Sie mir die Ergebnisse mit."
+                    )
+                    response["next_state"] = "gina_report"
+                    response["actions"] = ["Gina aufrufen", "Berichts-Parameter anpassen"]
+                else:
+                    # Verzeichnis nicht gefunden
+                    response["message"] = (
+                        "# ⚠️ Verzeichnis nicht gefunden\n\n"
+                        f"Das angegebene Verzeichnis '{user_input}' wurde nicht gefunden.\n\n"
+                        f"Bitte geben Sie einen gültigen Pfad zum Migrations-Verzeichnis an."
+                    )
+                    response["next_state"] = "get_migration_directory"
+                    response["actions"] = ["Pfad zum Migrations-Verzeichnis angeben"]
+
+                return response
+
+            # Zustand: Gina-Bericht verarbeiten
+            elif current_state == "gina_report":
+                # Hier erwarten wir, dass der Benutzer die Ergebnisse von Gina mitteilt
+
+                # Aktualisiere den Workflow-Status
+                response["workflow_status"]["gina"] = "completed"
+
+                # Versuche, die Ergebnisse von Gina zu parsen (optional)
+                try:
+                    gina_results = json.loads(user_input)
+                    context["gina_results"] = gina_results
+                    if "report_file" in gina_results:
+                        context["report_file"] = gina_results["report_file"]
+                except json.JSONDecodeError:
+                    print("Warnung: Konnte Gina-Ergebnisse nicht als JSON parsen.")
+
+                # Workflow abgeschlossen
+                report_path_info = f"Der Bericht wurde unter '{context.get('report_file', 'unbekannt')}' gespeichert." if "report_file" in context else "Der Migrationsbericht wurde erstellt."
+
+                response["message"] = (
+                    "# 🎉 Migrationsprozess abgeschlossen\n\n"
+                    "Herzlichen Glückwunsch! Der gesamte Migrationsprozess wurde erfolgreich abgeschlossen.\n\n"
+                    "## Zusammenfassung des Workflows:\n"
+                    f"1. **Steward** - Initialisierung und Routing ✅\n"
+                    f"2. **Emma** - Datenprofilierung ✅\n"
+                    f"3. **Oskar** - Datenbereinigung {('✅' if response['workflow_status']['oskar'] == 'completed' else '⏭️')}\n"
+                    f"4. **Mathias** - Feldmapping ✅\n"
+                    f"5. **James** - Datenmigration ✅\n"
+                    f"6. **Gina** - Berichterstellung ✅\n\n"
+                    f"{report_path_info}\n\n"
+                    f"Möchten Sie einen neuen Migrationsprozess starten oder haben Sie Fragen zum abgeschlossenen Prozess?"
+                )
+                response["next_state"] = "completed"
+                response["actions"] = ["Neuen Prozess starten", "Fragen zum Prozess stellen"]
+
+                return response
+
+            # Zustand: Workflow abgeschlossen
+            elif current_state == "completed":
+                if "neu" in user_input.lower() or "start" in user_input.lower():
+                    # Benutzer möchte einen neuen Prozess starten
+                    response["message"] = (
+                        "# 🚀 Neuer Migrationsprozess\n\n"
+                        "Ich starte einen neuen Migrationsprozess.\n\n"
+                        "Um zu beginnen, benötige ich den Pfad zu Ihrer Quelldatei (CSV)."
+                    )
+                    response["next_state"] = "get_source_file"
+                    response["context"] = {}  # Kontext zurücksetzen
+                    response["workflow_status"] = { # Workflow-Status zurücksetzen
+                        "steward": "pending", "emma": "pending", "oskar": "pending",
+                        "mathias": "pending", "james": "pending", "gina": "pending"
+                    }
+                else:
+                    # Benutzer hat eine Frage zum Prozess
+                    response["message"] = (
+                        "# ❓ Fragen zum Migrationsprozess\n\n"
+                        "Ich beantworte gerne Ihre Fragen zum abgeschlossenen Migrationsprozess.\n\n"
+                        "Sie können jederzeit einen neuen Prozess starten, indem Sie 'Neuen Prozess starten' eingeben."
+                    )
+                    response["actions"] = ["Neuen Prozess starten", "Wie kann ich den Bericht anpassen?", "Wo finde ich die bereinigten Daten?"]
+
+                return response
+
             # Fallback für unbekannte Zustände
             else:
                 response["message"] = (
-                    f"Entschuldigung, ich verstehe den aktuellen Zustand '{current_state}' nicht. "
-                    f"Bitte starten Sie den Prozess neu."
+                    f"# ⚠️ Unbekannter Zustand\n\n"
+                    f"Entschuldigung, ich verstehe den aktuellen Zustand '{current_state}' nicht.\n\n"
+                    f"Bitte starten Sie den Prozess neu, indem Sie 'Neuen Prozess starten' eingeben."
                 )
                 response["next_state"] = "start"
-                response["actions"] = ["Prozess neu starten"]
-            
-            return response
-            
+                response["actions"] = ["Neuen Prozess starten"]
+
+                return response
+
         except Exception as e:
+            # Log the full error for debugging
+            import traceback
+            print(f"Fehler im Chat-Workflow (Zustand: {current_state}): {str(e)}")
+            traceback.print_exc()
+
             return {
-                "message": f"Fehler im Chat-Flow: {str(e)}",
-                "next_state": "error",
+                "message": f"# ❌ Fehler im Workflow\n\nEs ist ein Fehler aufgetreten: {str(e)}\n\n"
+                           f"Aktueller Zustand: {current_state}\n"
+                           f"Bitte überprüfen Sie die Eingaben und versuchen Sie es erneut oder starten Sie den Prozess neu.",
+                "next_state": current_state, # Bleibe im aktuellen Zustand, um Korrektur zu ermöglichen
                 "context": context,
-                "actions": ["Prozess neu starten"]
-            } 
+                "actions": ["Prozess neu starten", "Letzten Schritt wiederholen"]
+            }
+
+    # ... (other helper functions like analyze_source_file, if needed)
+
+# Helper function to analyze source file (example)
+def analyze_source_file(file_path):
+    try:
+        delimiter = detect_delimiter(file_path)
+        df = pd.read_csv(file_path, sep=delimiter, nrows=10) # Read only first 10 rows for analysis
+        return {
+            "records": "unknown (full analysis needed)", # Placeholder
+            "columns": len(df.columns),
+            "column_names": df.columns.tolist()
+        }
+    except Exception as e:
+        print(f"Fehler beim Analysieren der Quelldatei {file_path}: {str(e)}")
+        return {
+            "records": "error",
+            "columns": "error",
+            "column_names": []
+        }
+
+# Helper function to detect delimiter (example)
+def detect_delimiter(file_path):
+    try:
+        with open(file_path, 'r', newline='', encoding='utf-8') as csvfile:
+            # Read a sample of the file to detect the delimiter
+            sample = csvfile.read(4096) # Read 4KB sample
+            sniffer = pd.io.parsers.readers.csv.CSVParser(pd.io.common.StringIO(sample), sep=None, engine='python')
+            delimiter = sniffer.read(nrows=1).columns[0] # Hacky way to get delimiter from parser
+            # Basic fallback if sniffer fails
+            if delimiter not in [',', ';', '\t', '|']:
+                 comma_count = sample.count(',')
+                 semicolon_count = sample.count(';')
+                 if semicolon_count > comma_count:
+                     return ';'
+                 else:
+                     return ','
+            return delimiter
+    except Exception:
+         # Default fallback
+         return ',' 
