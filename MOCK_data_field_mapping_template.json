@@ -1,0 +1,20 @@
+{
+  "id": {
+    "target_field": "id"
+  },
+  "first_name": {
+    "target_field": "first_name"
+  },
+  "last_name": {
+    "target_field": "last_name"
+  },
+  "email": {
+    "target_field": "email"
+  },
+  "gender": {
+    "target_field": "gender"
+  },
+  "ip_address": {
+    "target_field": "ip_address"
+  }
+}
