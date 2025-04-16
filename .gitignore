@@ -1,0 +1,8 @@
+# .gitignore
+
+# Ignoriere CSV-Dateien
+*.csv
+
+# Ignoriere Umgebungsdateien
+.env
+.env.*
