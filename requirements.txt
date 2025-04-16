@@ -8,3 +8,4 @@ mcp[cli]
 python-Levenshtein
 openai
 fastmcp
+markdown

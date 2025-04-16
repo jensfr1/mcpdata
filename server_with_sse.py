@@ -210,7 +210,7 @@ async def root():
             "sse": "/events",
             "messages": "/messages",
             "tools": "/tools",
-            "api": "/api/v1/tools/{agent_name}/{tool_name}/run"
+            "api": "/api/v1/tools/[agent_name]/[tool_name]/run"
         },
         "timestamp": datetime.now().isoformat()
     }
@@ -224,6 +224,6 @@ if __name__ == "__main__":
     print(f"📡 SSE events available at: /events")
     print(f"📨 Messages endpoint: /messages")
     print(f"🔧 Tools list: /tools")
-    print(f"🔍 MCP API: /api/v1/tools/{agent_name}/{tool_name}/run")
+    print(f"🔍 MCP API: /api/v1/tools/[agent_name]/[tool_name]/run")
     
     uvicorn.run(app, host="0.0.0.0", port=port) 
